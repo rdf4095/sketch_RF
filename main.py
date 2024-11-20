@@ -24,16 +24,20 @@ history:
             button pressed. Use the canvas info below each canvas as just a
             Label (without a Frame.)
 11-15-2024  Add linewidth parameter to the class, debug the mode setting.
+11-20-2024  Add option to change line width for either canvas. Change each 
+            sketchpad's statusbar to a Frame to report mode and linewidth.
+            Display cursor position at lower right of each canvas.
+            Remove some commented-out code.
 """
 
 import tkinter as tk
 from tkinter import ttk
 
 class Sketchpad(tk.Canvas):
-    def __init__(self, parent, **kwargs):        
+    def __init__(self, parent, **kwargs):
         self.width = 320
         self.height = 320
-        self.mode = 'freehand'
+        self.mode = 'freehand'    # or 'lines'
         self.background = '#ffa'
         self.linewidth = 1
         if 'width' in kwargs: self.width = kwargs['width']
@@ -45,7 +49,6 @@ class Sketchpad(tk.Canvas):
         self.linecolor = 'black'
         self.pen = 'move'    # or 'draw'
 
-        # super().__init__(parent, **kwargs)
         super().__init__(parent,
                          width=self.width,
                          height=self.height,
@@ -57,6 +60,7 @@ class Sketchpad(tk.Canvas):
         self.starty = 0
         # self.linewidth = 2
 
+        # print(f'width: {self["width"]}')
         if self.mode == 'freehand':
             self.bind("<Button-1>", self.set_start)
             self.bind("<Double-1>", self.connect_line)
@@ -67,6 +71,8 @@ class Sketchpad(tk.Canvas):
                 self.bind("<Double-1>", self.connect_line)
                 self.bind("ButtonRelease-1", self.pen_up)
 
+        self.bind("<Motion>", self.report_posn)
+        self.bind("<Leave>", self.clear_posn)
         self.bind("<B1-Motion>", self.draw_path)
 
 
@@ -124,6 +130,21 @@ class Sketchpad(tk.Canvas):
             self.firstx, self.firsty = 0, 0
 
 
+    def clear_posn(self, event) -> None:
+        """Remove displayed cursor position."""
+        self.delete('text1')
+
+
+    def report_posn(self, event) -> None:
+        """Display cursor position in lower right of canvas."""
+        self.delete('text1')
+        self.create_text(self.width - 24,
+                        self.height - 10,
+                        fill='blue',
+                        text=str(event.x) + ',' + str(event.y),
+                        tags='text1')
+
+
     def draw_path(self, event) -> None:
         """Draw a path following the cursor.
         
@@ -151,41 +172,44 @@ class Sketchpad(tk.Canvas):
         #     self.create_line(self.startx, self.starty, event.x, event.y - yvar, fill=self.linecolor, width=self.linewidth)
 
         # use x threshold value to force vertical line if path is approximately vertical
-        xvar = event.x - self.startx
-        if xvar <= x_threshold:
-            self.create_line(self.startx, self.starty, event.x - xvar, event.y, fill=self.linecolor, width=self.linewidth)
+        # xvar = event.x - self.startx
+        # if xvar <= x_threshold:
+        #     self.create_line(self.startx, self.starty, event.x - xvar, event.y, fill=self.linecolor, width=self.linewidth)
 
 
         # print(f'{event.x}, {event.y}')
 
-        # self.create_line(self.startx, self.starty, event.x, event.y, fill=self.linecolor, width=self.linewidth)
-        # self.set_start(event)
-
+        # no x or y change threshold
+        self.create_line(self.startx, self.starty, event.x, event.y, fill=self.linecolor, width=self.linewidth)
+        self.set_start(event)
 
 
 def set_color(ev):
     color_choice = colorbar.gettags('current')
-    # print(color_choice)
     sketch.linecolor = color_choice[0]
     sketch_2.linecolor = color_choice[0]
     
 
+def set_linewidth_1():
+    # direct set:
+    # sketch.linewidth = adj_linewidth.get()
+    # use associated Int variable:
+    sketch.linewidth = line_w1.get()
+
+
+def set_linewidth_2():
+    sketch_2.linewidth = line_w2.get()
+
+
 root = tk.Tk()
-# default_dims = "350x300"
-# root.geometry (default_dims)
 
-# root.columnconfigure(0, weight=1)
-# root.columnconfigure(1, weight=1)
-# root.rowconfigure(1, weight=1)
-
-# sketch = Sketchpad(root, width=320, height=320, background='#ff0')
 sketch = Sketchpad(root)
 
-sketch_2 = Sketchpad(root, height=200, background='#999', mode='lines')
+sketch_2 = Sketchpad(root, height=200, background='#ccc', mode='lines')
 
 # basic color selection for drawing
 num_colors = 8      # not used yet
-colors = ['red', 'orange', 'yellow', 'green', 'blue', 'violet', 'magenta', 'black']
+colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'magenta', 'black']
 xs = list(range(0, 320, 40))
 y1 = 0
 y2 = 42
@@ -195,45 +219,94 @@ for n, x in enumerate(xs):
     
 colorbar.bind('<1>', set_color)
 
+
+# For the controls (sketch statusbars) Frames, either tk or ttk widgets can be used.
+# As examples, I use tk for the first canvas and ttk for the second.
+# notes:
+#   'relief' could be used for either tk or ttk
+#            - with tk, use 'relief' and 'border'
+#            - with ttk, use 'relief' and 'padding'
+#   'padding' is only for ttk and is internal to the Frame
+#   'highlightthickness' and 'highlightbackground' are only for tk
+
+linewidths = list(range(1,11))
+
+# controls for sketch 1 ---------
+controls_1 = tk.Frame(root, border=1, relief='ridge')
+
+status1 = ttk.Label(controls_1, text='mode:')
+status1.pack(side='left')
+
+status1_value = ttk.Label(controls_1, foreground='blue', text=sketch.mode)
+status1_value.pack(side='left')
+
+lw1 = ttk.Label(controls_1, text='line width:')
+lw1.pack(side='left', padx=5)
+
+line_w1 = tk.IntVar(value=1)
+adj_linewidth1 = ttk.Spinbox(controls_1,
+                            width=3,
+                            from_=1,
+                            to=10,
+                            values=linewidths,
+                            wrap=True,
+                            foreground='blue',
+                            textvariable=line_w1,
+                            command=set_linewidth_1)
+adj_linewidth1.pack(side='left')
+# --------- END controls 1
+
+
+# controls for sketch 2 ----------
+controls_2 = ttk.Frame(root, padding=2, relief='groove')
+
+status2 = ttk.Label(controls_2, text='mode:')
+status2.pack(side='left')
+
+status2_value = ttk.Label(controls_2, foreground='blue', text=sketch_2.mode)
+status2_value.pack(side='left')
+
+cursor_posn2 = tk.Text(background='#ff0')
+
+lw2 = ttk.Label(controls_2, text='line width:')
+lw2.pack(side='left', padx=5)
+
+line_w2 = tk.IntVar(value=1)
+adj_linewidth2 = ttk.Spinbox(controls_2,
+                            width=3,
+                            from_=1,
+                            to=10,
+                            values=linewidths,
+                            wrap=True,
+                            foreground='blue',
+                            textvariable=line_w2,
+                            command=set_linewidth_2)
+adj_linewidth2.pack(side='left')
+# ---------- END controls 2
+
+
 btnq = ttk.Button(root,
                   text="Quit",
                   command=root.quit,
                   style="MyButton1.TButton")
 
-# For the statusbar Frames, either tk or ttk widgets can be used.
-# As examples, I use tk for the first canvas and ttk for the second.
-# notes:
-#   'relief' could be used for either tk or ttk
-#   'padding' is only for ttk and is internal to the Frame
-#   'highlightthickness' and 'highlightbackground' are only for tk
-sketch1_status = tk.Frame(root, highlightthickness=1, highlightbackground='darkgrey')
-# modetext1 = 'mode: ' + sketch.mode
-status1 = ttk.Label(root, padding=2, text='mode: ' + sketch.mode)
-# status1.pack(side='left', pady=2)
-
-sketch2_status = ttk.Frame(root, padding=2, relief='groove')
-status2 = ttk.Label(root, text='mode: ' + sketch_2.mode)
-# status2.pack(side='left', pady=2)
-
 
 sketch.grid(column=0,         row=0)
-# sketch1_status.grid(column=0, row=1, sticky='ew')
-status1.grid(column=0,        row=1)#, sticky='ew')
+controls_1.grid(column=0,     row=1, sticky='ew')
 spacer = tk.Frame(root, height=10)
 spacer.grid(column=0,         row=2)
 
 sketch_2.grid(column=0,       row=3)
-# sketch2_status.grid(column=0, row=4, sticky='ew')
-status2.grid(column=0,        row=4)#, sticky='ew')
+controls_2.grid(column=0,     row=4, sticky='ew')
 colorbar.grid(column=0,       row=5, pady=10)
+
 btnq.grid(column=0,           row=6, ipady=20)
 
-# root.grid_columnconfigure(0, weight=1)
-
-sketch.update()
-
+# sketch.update()
 # print(f'size of sketch: {sketch.winfo_width()}, {sketch.winfo_height()}')
+
 # colorbar.update()
 # print(f'size of colorbar: {colorbar.winfo_width()}')
 
-root.mainloop()
+if __name__ == '__main__':
+    root.mainloop()
