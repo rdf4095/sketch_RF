@@ -32,37 +32,74 @@ history:
 12-02-2024  Debug double-click function(s).
 12-04-2024  Add lists of lines & points clicked. For line mode, add undo_line()
             to delete the last line added.
+12-14-2024  Put quit button in Frame, update some function docstrings.
+12-17-2024  Edit .gitignore, update function docstrings. Define Sketchpad class
+            with explicit parameters. (Move **kwargs code to notes.txt.) Add
+            docstrings for Class and Class __init__ (incomplete).
+12-19-2024  Pass textvariable to set_linewidth functions.
+12-21-2024  Debug "undo" for line mode: can undo each line drawn, until the
+            shape is closed, then the line list is reset. Add class attribute
+            "line_count" for generating unique tag names.
 """
 import tkinter as tk
 from tkinter import ttk
 
 class Sketchpad(tk.Canvas):
-    def __init__(self, parent, **kwargs):
-        self.width = 320
-        self.height = 320
-        self.mode = 'freehand'    # or 'lines'
-        self.background = '#ffa'
-        self.linewidth = 1
-        if 'width' in kwargs: self.width = kwargs['width']
-        if 'height' in kwargs: self.height = kwargs['height']
-        if 'mode' in kwargs: self.mode = kwargs['mode']
-        if 'background' in kwargs: self.background = kwargs['background']
-        if 'linewidth' in kwargs: self.linewidth = kwargs['linewidth']
+    """
+    Sketchpad : Defines a Canvas for interactive drawing.
 
-        self.linecolor = 'black'
+    Extends: tk.Canvas
+
+    Attributes
+    ----------
+
+    Methods
+    -------
+    method_1:
+        text
+    """
+    def __init__(self, parent,
+                       width=320,
+                       height=320,
+                       mode='freehand',
+                       background='#ffa',
+                       linewidth=1
+                 ):
+        """
+        Inits a Sketchpad object.
+
+        Parameters
+        ----------
+        width : Int
+            Canvas width.
+        height : Int
+            Canvas height.
+
+        Methods
+        -------
+        point_init:
+            Defines a Point object for x-y Canvas position.
+        """
+
+        self.width = width
+        self.height = height
+        self.mode = mode
+        self.background = background
+        self.linewidth = linewidth
 
         super().__init__(parent,
                          width=self.width,
                          height=self.height,
                          background=self.background)
 
+        self.linecolor = 'black'
         self.firstx = 0
         self.firsty = 0
         self.startx = 0
         self.starty = 0
         self.previousx = 0
         self.previousy = 0
-
+        self.line_count = 0
         self.points = []
         self.linetags = []
 
@@ -70,62 +107,50 @@ class Sketchpad(tk.Canvas):
             self.bind('<Button-1>', self.set_start)
             # self.bind('<Double-1>', self.double_click)
             # self.bind('<ButtonRelease-1>', self.pen_up)
-
         else:
             if self.mode == 'lines':
                 self.bind('<Button-1>', self.draw_line)
                 self.bind('<Double-1>', self.double_click)
                 self.bind('<Button-3>', self.undo_line)
-                # self.bind('ButtonRelease-1>', self.pen_up)
-
 
         self.bind("<Motion>", self.report_posn)
         self.bind("<Leave>", self.clear_posn)
         self.bind("<B1-Motion>", self.draw_path)
 
-    # type Point = dict[int, int]
-    # def add_point(self, xval: int, yval: int) -> Point:
-    #     return {'x': xval, 'y': yval}
-        def point_init(self, xval: int, yval: int):
-            self.xval = xval
-            self.yval = yval
+        def point_init(thispoint, xval: int, yval: int):
+            thispoint.xval = xval
+            thispoint.yval = yval
 
         self.Point = type('Point', (), {"__init__": point_init})
 
     def set_start(self, event) -> None:
-        # TODO: break this into two functions: only lines mode needs to append point.
-        """
-        the mouse cursor position (posn) depends on context:
-        .winfo_pointerx,y is the posn of the cursor relative to the screen.
-        .winfo_rootx,y is the posn of the root object relative to the screen.
-        event.x,y is the posn of cursor relative to the root window.
-
-        Notes: - the OS reserves the top 25 pixels or so for the system menubar,
-                 so winfo_rooty=0 corresponds to the next pixel below this.
-               - padding used by the geometry manager is not counted, so
-                 winfo_pointerx = event.x + winfo_rootx + ipadx + padx.
+        """Handler for L-mouse click in freehand mode: save initial cursor
+        position (firstx,y) and next position clicked after closing a figure in
+        line mode (startx,y). Also used in line mode to reset the start posn.
         """
         if self.firstx == 0 and self.firsty == 0:
             self.firstx, self.firsty = event.x, event.y
-            print(f'set first: {self.firstx}, {self.firsty}')
+        else:
+            self.previousx, self.previousy = self.startx, self.starty
 
-        self.previousx, self.previousy = self.startx, self.starty
         self.startx, self.starty = event.x, event.y
 
-        if self.mode != 'freehand':
+        if self.mode == 'lines':
             self.points.append(self.Point(event.x, event.y))
-            print(f'point added: {self.points[-1].xval},{self.points[-1].yval}')
+            # print(f'point added: {self.points[-1].xval},{self.points[-1].yval}')
 
 
     def draw_line(self, event) -> None:
-        """If past the starting position, draw a line from last posn to current posn."""
+        """Handler for L-mouse click in line mode. If past the starting position,
+        draw a line from last posn to current posn.
+        """
         if self.firstx == 0 and self.firsty == 0:
             self.set_start(event)
             return
 
-        # print(f'    drawing from {self.startx},{self.starty} to {event.x},{event.y}')
-        line_number = len(self.points)
-        tagname = 'line' + str(line_number)
+        self.line_count += 1
+        # line_number = self.line_count + 1#len(self.points)
+        tagname = 'line' + str(self.line_count)
         self.create_line(self.startx, self.starty,
                          event.x, event.y,
                          fill=self.linecolor,
@@ -135,28 +160,54 @@ class Sketchpad(tk.Canvas):
         self.linetags.append(tagname)
         self.set_start(event)
 
-    def undo_line(self, event) -> None:
-        print(f'last point: {self.points[-1].xval},{self.points[-1].yval}')
-        print(f'last tagname: {self.linetags[-1]}')
-        self.delete(self.linetags[-1])
-        self.linetags.pop()
-        self.points.pop()
-        print(f'    last point: {self.points[-1].xval},{self.points[-1].yval}')
-        print(f'    last tagname: {self.linetags[-1]}')
-
-        self.startx, self.starty = self.previousx, self.previousy
-
 
     def double_click(self, event) -> None:
-        """Draw a line from the current position to the starting position."""
-        print(f'    connecting from {event.x},{event.y} to {self.firstx},{self.firsty}')
-        self.create_line(event.x, event.y, self.firstx, self.firsty, fill=self.linecolor, width=self.linewidth)
+        """Handler for L mouse double-click, in line mode. First, the single-click
+        handler draws a line from the current position to the start posn. Then,
+        this handler draws a line from the current to the previous position.
+        """
+        # print(f'    connecting from {event.x},{event.y} to {self.firstx},{self.firsty}')
+        self.line_count += 1
+        # line_number = self.line_count + 1#len(self.points)
+        tagname = 'line' + str(self.line_count)
+        self.create_line(event.x, event.y,
+                         self.firstx, self.firsty,
+                         fill=self.linecolor,
+                         width=self.linewidth,
+                         tags=tagname)
+        self.linetags.append(tagname)
+        print(f'linetags: {self.linetags}')
+
+        # try (don't think this is necessary)
+        # self.startx, self.starty = self.previousx, self.previousy
 
         self.firstx, self.firsty = 0, 0
 
+        # the current shape is closed, forget its points and lines
+        self.points = []
+        self.linetags = []
+
+
+    def undo_line(self, event) -> None:
+        """Handler for R-mouse click. In line mode, remove last line and make
+        previous cursor position the current position for connecting new lines.
+        """
+        if (self.firstx, self.firsty) == (0, 0):
+            return
+
+        if len(self.linetags) > 0:
+            # print(f'linetags: {self.linetags}')
+            self.delete(self.linetags[-1])
+            self.linetags.pop()
+        if len(self.points) > 0:
+            # print(f'points: {self.points}')
+            self.points.pop()
+            if len(self.points) >= 1:
+                self.startx, self.starty = self.points[-1].xval, self.points[-1].yval
+
 
     def clear_posn(self, event) -> None:
-        """Remove displayed cursor position."""
+        """Remove displayed cursor position from the canvas."""
         self.delete('text1')
 
 
@@ -168,6 +219,16 @@ class Sketchpad(tk.Canvas):
                          fill='blue',
                          text=str(event.x) + ',' + str(event.y),
                          tags='text1')
+
+
+    def report_color(self, textstr) -> None:
+        """Display cursor position in lower right of canvas."""
+        self.delete('text2')
+        self.create_text(24,
+                         self.height - 10,
+                         fill=str,
+                         text=textstr,
+                         tags='text2')
 
 
     def draw_path(self, event) -> None:
@@ -208,32 +269,37 @@ class Sketchpad(tk.Canvas):
         self.report_posn(event)
         self.set_start(event)
 
+# END Class Sketchpad ==========
 
 
-def set_color(ev):
+def set_color(event):
+    """Set drawing color for both canvases."""
     color_choice = colorbar.gettags('current')
+    print(f'color: {color_choice}')
     sketch.linecolor = color_choice[0]
     sketch_2.linecolor = color_choice[0]
+
+    sketch.report_color(color_choice[0])
     
 
-def set_linewidth_1():
-    # direct set:
-    # sketch.linewidth = adj_linewidth.get()
-    # use associated Int variable:
-    sketch.linewidth = line_w1.get()
+def set_linewidth_1(var):
+    """Set line width for canvas 1 (freehand)."""
+    sketch.linewidth = var.get()
 
 
-def set_linewidth_2():
-    sketch_2.linewidth = line_w2.get()
+def set_linewidth_2(var):
+    """Set line width for canvas 2 (lines)."""
+    sketch_2.linewidth = var.get()
 
 
 root = tk.Tk()
 
 sketch = Sketchpad(root)
+# works:
+# print(f'widgetName, _name: {sketch.widgetName}, {sketch._name}')
 
 sketch_2 = Sketchpad(root, height=200, background='#ccc', mode='lines')
 
-# basic color selection for drawing
 num_colors = 8      # not used yet
 colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'magenta', 'black']
 xs = list(range(0, 320, 40))
@@ -246,8 +312,8 @@ for n, x in enumerate(xs):
 colorbar.bind('<1>', set_color)
 
 
-# For the sketch statusbar Frames that contain control widgets, I use tk
-# widgets for the first canvas and ttk for the second.
+# For the sketch statusbars that contain control widgets, I use tk
+# widgets for the first canvas and ttk for the second, just to demonstrate.
 #   for tk Frames:
 #       - For a visible border, use 'relief' and 'border' attributes
 #       - can use 'highlightthickness' and 'highlightbackground' attributes
@@ -267,7 +333,6 @@ status1_value = ttk.Label(controls_1, foreground='blue', text=sketch.mode)
 status1_value.pack(side='left')
 
 lw1 = ttk.Label(controls_1, text='line width:')
-lw1.pack(side='left', padx=5)
 
 line_w1 = tk.IntVar(value=1)
 adj_linewidth1 = ttk.Spinbox(controls_1,
@@ -278,8 +343,9 @@ adj_linewidth1 = ttk.Spinbox(controls_1,
                             wrap=True,
                             foreground='blue',
                             textvariable=line_w1,
-                            command=set_linewidth_1)
-adj_linewidth1.pack(side='left')
+                            command=lambda var=line_w1: set_linewidth_1(var))
+adj_linewidth1.pack(side='right', pady=5)
+lw1.pack(side='right', padx=5)
 # --------- END controls 1
 
 
@@ -295,7 +361,6 @@ status2_value.pack(side='left')
 cursor_posn2 = tk.Text(background='#ff0')
 
 lw2 = ttk.Label(controls_2, text='line width:')
-lw2.pack(side='left', padx=5)
 
 line_w2 = tk.IntVar(value=1)
 adj_linewidth2 = ttk.Spinbox(controls_2,
@@ -306,16 +371,16 @@ adj_linewidth2 = ttk.Spinbox(controls_2,
                             wrap=True,
                             foreground='blue',
                             textvariable=line_w2,
-                            command=set_linewidth_2)
-adj_linewidth2.pack(side='left')
+                            command=lambda var=line_w2: set_linewidth_2(var))
+adj_linewidth2.pack(side='right', pady=5)
+lw2.pack(side='right', padx=5)
 # ---------- END controls 2
 
-
-btnq = ttk.Button(root,
+quit_fr = ttk.Frame(root)
+btnq = ttk.Button(quit_fr,
                   text="Quit",
                   command=root.quit,
                   style="MyButton1.TButton")
-
 
 sketch.grid(column=0,         row=0)
 controls_1.grid(column=0,     row=1, sticky='ew')
@@ -326,7 +391,10 @@ sketch_2.grid(column=0,       row=3)
 controls_2.grid(column=0,     row=4, sticky='ew')
 colorbar.grid(column=0,       row=5, pady=10)
 
-btnq.grid(column=0,           row=6, ipady=20)
+# btnq.grid(column=0,           row=6, ipady=10)
+btnq.pack()
+quit_fr.grid(column=0, row=6, pady=10)
+
 
 # sketch.update()
 # print(f'size of sketch: {sketch.winfo_width()}, {sketch.winfo_height()}')
