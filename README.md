@@ -2,7 +2,7 @@
 An interactive drawing application
 
 ## DEPENDENCIES
-- **tkinter**, may have to be loaded on some linux distributions
+- **tkinter**, may need to be installed, on some linux distributions
 
 ## OPERATION
 Two drawing canvases are presented, in which you can draw with the mouse. In
@@ -22,6 +22,6 @@ line back to the first point clicked, "closing" a shape.
 A colorbar allows click-selection of line color, which apply to both Canvases.
 
 ## BACKGROUND
-The app implements a class that extends the tkinter Canvas object. There
+The app implements a base class that extends the tkinter Canvas object, and two subclasses. There
 are two tkinter Canvases of arbitrary size, which demonstrate different modes of 
 drawing.

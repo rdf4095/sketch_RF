@@ -43,10 +43,12 @@ history:
 03-11-2025  Use canvas/canvas_classes module for canvas classes.
 03-31-2025  Add canvas parameter to set_linewidth().
 06-12-2025  Use utilities/tool_classes.py for widget classes.
+08-07-2025  Treat .grid as expected by utilities/tool_classes.py. Add colorbar
+            for the second sketch Canvas.
+08-09-2025  Move all grid() statements to one section.
 """
 """
 TODO
-    1. ? should be a separate colorbar for each canvas.
 """
 import tkinter as tk
 from tkinter import ttk
@@ -56,13 +58,16 @@ from importlib.machinery import SourceFileLoader
 cnv = SourceFileLoader("cnv_classes", "../canvas/canvas_classes.py").load_module()
 tc = SourceFileLoader("tools", "../utilities/tool_classes.py").load_module()
 
-def set_color(event, canv, cb):
+def set_color(event: tk.Event,
+              canv: object,
+              cb: object
+              ) -> None:
     """Set color for lines drawn on canvases.
 
     Parameters:
-        event: widget event bound to this function
-        cb : colorbar object
-        canv : canvas object
+        event: widget event, needed by the lambda in the bind()
+        canv : drawing Canvas
+        cb : colorbar Canvas
     """
     color_choice = cb.gettags('current')[0]
 
@@ -70,8 +75,12 @@ def set_color(event, canv, cb):
     report_color(canv, color_choice)
 
 
-def report_color(canv, textstr) -> None:
-    """Display line color in lower left of canvas."""
+def report_color(canv: object, textstr: str) -> None:
+    """Display line color in lower left of canvas.
+
+    parameter:
+        textstr : color string
+    """
     canv.delete('color_text')
     canv.create_text(10,
                      canv.height - 10,
@@ -81,74 +90,63 @@ def report_color(canv, textstr) -> None:
                      tags='color_text')
 
 
-def set_linewidth(canv, var):
+def set_linewidth(canv: object, var: tk.IntVar) -> None:
     """Set line width for lines or shapes on a canvas.
 
     parameter:
-        var : line width, from the IntVar in adj_linewidth.
+        var : line width value, from the selector widget.
     """
     canv.linewidth = var.get()
 
 
 root = tk.Tk()
 
-sketch = cnv.DrawCanvas(root, mode='freehand', background='#ffc')
-# works for introspection:
-# print(f'for sketch: {sketch.widgetName=}, {sketch._name=}')
-
-sketch_2 = cnv.DrawCanvas(root, mode='lines', height=300, background='#ccc')
-
 linewidths = [str(i) for i in list(range(1,11))]
 
+# variables for colorbars
 num_colors = 8      # not used yet
 colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'magenta', 'black']
 xs = list(range(0, 320, 40))
 y1 = 0
 y2 = 42
-colorbar = tk.Canvas(root, width=320, height=40)
-for n, x in enumerate(xs):
-    colorbar.create_rectangle(x, y1, x+40, y2, fill=colors[n], tags=colors[n])# + str(n))
-    
-colorbar.bind('<1>', lambda ev, canv=sketch, cb=colorbar: set_color(ev, canv, cb))
+# END vars for colorbars
 
+sketch_1 = cnv.DrawCanvas(root, mode='freehand', background='#ffc')
 
 # controls for sketch 1 ---------
 controls_1 = tk.Frame(root, border=1, relief='raised')
 
 status_frame1 = tk.Frame(controls_1)
 status1 = ttk.Label(status_frame1, text='mode:')
-status1.grid(column=0, row=0, sticky='w')
 
-status1_value = ttk.Label(status_frame1, foreground='blue', text=sketch.mode)
-status1_value.grid(column=1, row=0)
+status1_value = ttk.Label(status_frame1, foreground='blue', text=sketch_1.mode)
 
 line_w1 = tk.IntVar(value=1)
 lw1 = tc.SpinboxFrame(controls_1,
                       sb_values=linewidths,
                       display_name='Line width:',
                       var=line_w1,
-                      callb=lambda canv=sketch, var=line_w1: set_linewidth(canv, var),
-                      posn=[1, 0],
+                      callb=lambda canv=sketch_1, var=line_w1: set_linewidth(canv, var),
+                      posn=[0, 1],
                       stick='e'
                       )
-
-controls_1.grid(column=0, row=1, sticky='ew')
-controls_1.columnconfigure(0, weight=1)
-controls_1.columnconfigure(1, weight=1)
-
-status_frame1.grid(column=0, row=0, sticky='w')
-
 # --------- END controls 1
+
+colorbar1 = tk.Canvas(controls_1, width=320, height=40)
+for n, x in enumerate(xs):
+    colorbar1.create_rectangle(x, y1, x + 40, y2, fill=colors[n], tags=colors[n])  # + str(n))
+
+colorbar1.bind('<1>', lambda ev, canv=sketch_1, cb=colorbar1: set_color(ev, canv, cb))
+
+sketch_2 = cnv.DrawCanvas(root, mode='lines', background='#ccc')
 
 # controls for sketch 2 ----------
 controls_2 = ttk.Frame(root, padding=2, relief='groove')
 
 status_frame2 = ttk.Frame(controls_2)
 status2 = ttk.Label(status_frame2, text='mode:')
-status2.grid(column=0, row=3, sticky='w')
 
 status2_value = ttk.Label(status_frame2, foreground='blue', text=sketch_2.mode)
-status2_value.grid(column=1, row=3)
 
 cursor_posn2 = tk.Text(background='#ff0')
 
@@ -158,37 +156,50 @@ lw2 = tc.SpinboxFrame(controls_2,
                       display_name='Line width:',
                       var=line_w2,
                       callb=lambda canv=sketch_2, var=line_w2: set_linewidth(canv, var),
-                      posn=[1, 0],
+                      posn=[0, 1],
                       stick='e'
                       )
-
-controls_2.grid(column=0, row=4, sticky='ew')
-controls_2.columnconfigure(0, weight=1)
-controls_2.columnconfigure(1, weight=1)
-
-status_frame2.grid(column=0, row=0, sticky='w')
-
 # ---------- END controls 2
+
+colorbar2 = tk.Canvas(controls_2, width=320, height=40)
+for n, x in enumerate(xs):
+    colorbar2.create_rectangle(x, y1, x + 40, y2, fill=colors[n], tags=colors[n])  # + str(n))
+
+colorbar2.bind('<1>', lambda ev, canv=sketch_2, cb=colorbar2: set_color(ev, canv, cb))
 
 quit_fr = ttk.Frame(root)
 btnq = ttk.Button(quit_fr,
                   text="Quit",
                   command=root.quit,
-                  style="MyButton1.TButton")
-
-sketch.grid(column=0,         row=0)
-spacer = tk.Frame(root, height=10)
-spacer.grid(column=0,         row=2)
-
-sketch_2.grid(column=0,       row=3)
-
-colorbar.grid(column=0,       row=5, pady=10)
-
-# why not use .grid?
-# btnq.grid(column=0,           row=6, ipady=10)
+                  style="MyButton1.TButton"
+                  )
 btnq.pack()
 
-quit_fr.grid(column=0, row=6, pady=10)
+# grid the interface
+# ------------------
+sketch_1.grid(row=0, column=0)
+controls_1.grid(row=1, column=0, sticky='ew')
+controls_1.columnconfigure(0, weight=1)
+controls_1.columnconfigure(1, weight=1)
+#     __ controls_1
+status_frame1.grid(row=0, column=0, sticky='w')
+colorbar1.grid(row=1, column=0, pady=10, columnspan=2)
+#         __ status_frame1
+status1.grid(row=0, column=0, sticky='w')
+status1_value.grid(row=0, column=1)
+
+sketch_2.grid(row=2, column=0)
+controls_2.grid(row=3, column=0, sticky='ew')
+controls_2.columnconfigure(0, weight=1)
+controls_2.columnconfigure(1, weight=1)
+#     __ controls_2
+status_frame2.grid(row=0, column=0, sticky='w')
+colorbar2.grid(row=1, column=0, pady=10, columnspan=2)
+#         __ status_frame2
+status2.grid(row=0, column=0, sticky='w')
+status2_value.grid(row=0, column=1)
+
+quit_fr.grid(row=4, column=0, pady=10)
 
 if __name__ == '__main__':
     root.mainloop()
